@@ -19,13 +19,14 @@
 #define I2C_SDA 14
 #define I2C_SCL 15
 #define endereco 0x3C
+
 #define btA 5        // Pino do botão A
-//#define btB 6        // Pino do botão B
 #define move_X 26 // Pino para Eixo X
 #define move_Y 27 // Pino para Eixo Y
 #define bt_JOY 22 // botão do Joystick
 #define DEAD_ZONE 30
-//declarações de constantes
+
+//declarações de Constantes
 const uint led_g = 11; //LED verde
 const uint led_b = 12; //LED azul
 const uint led_r = 13; //LED vermelho
@@ -34,18 +35,19 @@ const int ADC_C1 = 1;//canal ADC para eixo Y
 const uint16_t WRAP = 4096;
 const float DIVISER = 2;
 
-uint16_t vrx_value, vry_value;
-uint16_t div_value_x, div_value_y;
+uint16_t vrx_value, vry_value; //variavel para captar valor de x e y
+uint16_t div_value_x, div_value_y; //variavel onde será salvo o valor x e y divivido 
 
-bool green_state = false;
-bool pwm_enabled = true;
-int border_style = 0;
+bool green_state = false; //estado do led verde
+bool pwm_enabled = true; //estado do pwd dos led
 
-bool cor_borda = true; 
+bool cor_borda = true; //borda on / off
 ssd1306_t ssd;
 
-static volatile uint32_t last_time = 0; 
+static volatile uint32_t last_time = 0; //tempo da ultima interrupção 
 
+
+//configuração do pino para modo pwm
 void init_pwm(uint led){
     gpio_set_function(led, GPIO_FUNC_PWM);
     uint slice = pwm_gpio_to_slice_num(led); //obter o canal PWM da GPIO
@@ -55,27 +57,31 @@ void init_pwm(uint led){
     pwm_set_enabled(slice,true);
 }
 
+//função para ligar ou desligar o pwm, além de mudar o valor do pwm no pino, neste caso do led
 void set_pwm(uint led, uint16_t value){ 
     if (pwm_enabled){
-        uint slice = pwm_gpio_to_slice_num(led);
-        pwm_set_gpio_level(led, value);
+        uint slice = pwm_gpio_to_slice_num(led); 
+        pwm_set_gpio_level(led, value); // altera o valor do led
     }else{
-        pwm_set_gpio_level(led, 0);
+        pwm_set_gpio_level(led, 0); // desliga led
     }
 }
 
+//configuração do pino do led
 void set_pin_led(uint pin){
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_OUT);
     gpio_put(pin, false);
 }
 
+//configuração do botão
 void set_pin_button(uint button){
     gpio_init(button);
     gpio_set_dir(button, GPIO_IN);
     gpio_pull_up(button);
 }
 
+//configuração do ADC do joystick
 void setup_joystick()
 {
   // Inicializa o ADC e os pinos de entrada analógica
@@ -89,6 +95,7 @@ void setup_joystick()
   gpio_pull_up(bt_JOY);          // Ativa o pull-up no pino do botão para evitar flutuações
 }
 
+//configuração da comunicação I2C
 void setup_i2c(){
   i2c_init(I2C_PORT, 400 * 1000);
 
@@ -98,6 +105,7 @@ void setup_i2c(){
   gpio_pull_up(I2C_SCL); // Pull up the clock line
 }
 
+//configuração da tela OLED
 void init_OLED(){
     ssd1306_init(&ssd, WIDTH, HEIGHT, false, endereco, I2C_PORT); // Inicializa o display
     ssd1306_config(&ssd); // Configura o display
@@ -108,6 +116,7 @@ void init_OLED(){
     ssd1306_send_data(&ssd);
 }
 
+//Função que lê o valor da posição do joystick
 void joystick_read_axis(uint16_t *vx_value, uint16_t *vy_value)
 {
   // Leitura do valor do eixo X do joystick
@@ -121,10 +130,11 @@ void joystick_read_axis(uint16_t *vx_value, uint16_t *vy_value)
   uint16_t y = adc_read() - 10;         // Lê o valor do eixo Y (0-4095)e diminui 10
 
   // Aplica a zona morta
-  *vx_value = (abs(x - *vx_value) > DEAD_ZONE) ? x : *vx_value;
+  *vx_value = (abs(x - *vx_value) > DEAD_ZONE) ? x : *vx_value; 
   *vy_value = (abs(y - *vy_value) > DEAD_ZONE) ? y : *vy_value;
 }
 
+// função que altera a posição do quadrado na tela OLED
 void game_move(uint16_t x, uint16_t y){
     if (x < 1) x = 1;
     if (y < 1) y = 1;
@@ -138,6 +148,7 @@ void game_move(uint16_t x, uint16_t y){
 static void button_press(uint gpio, uint32_t events);
 static void ajuste_OLED();
 
+//inicialização de tudo
 void setup(){
     stdio_init_all();
     setup_joystick();
@@ -150,35 +161,38 @@ void setup(){
 }
 
 
-
 int main()
 {
-    setup();
+    setup();//inicializa tudo o que é necessário 
 
-    gpio_set_irq_enabled_with_callback(btA, GPIO_IRQ_EDGE_FALL, true, &button_press);  
+    gpio_set_irq_enabled_with_callback(btA, GPIO_IRQ_EDGE_FALL, true, &button_press); //configura e habilita a interrupção
     gpio_set_irq_enabled(bt_JOY, GPIO_IRQ_EDGE_FALL, true);  // Apenas habilita interrupção    
 
     printf("Inicio-Joystick-PWM\n"); 
 
-    while (true) {
-        joystick_read_axis(&vrx_value, &vry_value);
 
-        div_value_x = vrx_value / 72;
-        div_value_y = vry_value / 34; 
+    //loop principal
+    while (true) {
+        joystick_read_axis(&vrx_value, &vry_value);//chama a função para capturar o valor de x e y
+
+        div_value_x = vrx_value / 72; //divide o valor de x por 72
+        div_value_y = vry_value / 34; //divide o valor de y por 34
+        
         // Ajusta div_value_y
         ajuste_OLED();
         
-        game_move(div_value_x, div_value_y);
+        game_move(div_value_x, div_value_y);//chama a função e altera a posição do quadrado
 
-        vrx_value = 4095 - vrx_value;
-        vry_value = 4095 - vry_value;
+        vrx_value = 4095 - vrx_value;//inverte x
+        vry_value = 4095 - vry_value;//inverte y
 
+        //condição para verificar canto inferior direito do joystick, onde o eixo x e y não zera totalmente
         if (vry_value < 230 && vry_value > 25 && vrx_value > 346 && vrx_value < 500) {
             set_pwm(led_b, 0);
             set_pwm(led_r, 0);
         } else {
             set_pwm(led_b, vry_value);
-            set_pwm(led_r, (vrx_value > 500) ? vrx_value : 0);
+            set_pwm(led_r, (vrx_value > 500) ? vrx_value : 0); //condição que verifica somente o eixo x, onde se for maior que 500, o valor sera o mesmo do vrx_value, se não, será 0
         }
 
        printf("valor vx = %d\n", div_value_x);
@@ -202,12 +216,12 @@ void button_press(uint gpio, uint32_t events) {
         else if (gpio == bt_JOY) {
             green_state = !green_state;
             gpio_put(led_g, green_state);
-            border_style = (border_style + 1) % 3;
             cor_borda =! cor_borda;
         } 
     } 
 }
 
+//função que ajusta a borda da tela OLED
 void ajuste_OLED(){
     if(div_value_y == 0){
         div_value_y = vry_value / 34 + 3; 
